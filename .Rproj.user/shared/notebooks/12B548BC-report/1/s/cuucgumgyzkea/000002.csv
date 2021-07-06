@@ -1,0 +1,18 @@
+"0","get_ideb_spatial_lag_dir <- here::here(""R"", ""get_ideb_spatial_lag.R"")"
+"0",""
+"0","source(get_ideb_spatial_lag_dir)"
+"2","Carregando pacotes exigidos: sp
+"
+"2","Carregando pacotes exigidos: spData
+"
+"2","To access larger datasets in this package, install the spDataLarge package with:
+`install.packages('spDataLarge', repos='https://nowosad.github.io/drat/', type='source')`
+"
+"2","NAs in lagged values"
+"2","NAs in lagged values"
+"2","NAs in lagged values"
+"2","NAs in lagged values"
+"2","NAs in lagged values"
+"2","NAs in lagged values"
+"2","NAs in lagged values"
+"2","NAs in lagged values"

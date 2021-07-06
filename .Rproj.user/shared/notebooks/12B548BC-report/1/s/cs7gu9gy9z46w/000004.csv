@@ -1,0 +1,8 @@
+"0","df_ideb_score %>%"
+"0","  filter(ideb_score_status == ""Observado"") %>%"
+"0","  ggplot(aes(x = ideb_score, "
+"0","             y = ideb_publication_year, "
+"0","             fill = ideb_publication_year)) +"
+"0","  geom_density_ridges(stat = ""binline"", alpha = 0.6) +"
+"0","  theme_minimal() +"
+"0","  theme(legend.position = ""none"")"
