@@ -9,24 +9,19 @@ get_ideb_spatial_lag <- function(df_ideb) {
   vct_ideb_spatial_lag <- list(ideb_score_lag = lag.listw(ideb_queen_weights,
                                                           df_ideb$ideb_score, NAOK = TRUE))
   
-  df_ideb_spatial_lag <- bind_cols(df_ideb, vct_ideb_spatial_lag)
+  mean_ideb_score <- mean(df_ideb$ideb_score, na.rm = TRUE)
+  
+  mean_ideb_score_lag <- mean(vct_ideb_spatial_lag$ideb_score_lag, na.rm = TRUE)
+  
+  
+  df_ideb_spatial_lag <- bind_cols(df_ideb, vct_ideb_spatial_lag) %>%
+    mutate(moran_status = case_when((ideb_score_lag > mean_ideb_score_lag) & (ideb_score > mean_ideb_score) ~ "AA",
+                                    (ideb_score_lag < mean_ideb_score_lag) & (ideb_score < mean_ideb_score) ~ "BB",
+                                    (ideb_score_lag > mean_ideb_score_lag) & (ideb_score < mean_ideb_score) ~ "BA",
+                                    (ideb_score_lag < mean_ideb_score_lag) & (ideb_score > mean_ideb_score) ~ "AB",
+                                    TRUE ~ "NS"))
   
   return(df_ideb_spatial_lag)
-  
-}
-
-get_saeb_spatial_lag <- function(df_saeb) {
-  
-  saebqueen_weights <- df_saeb %>%
-    poly2nb() %>%
-    nb2listw(zero.policy = TRUE)
-  
-  vct_saeb_spatial_lag <- list(saeb_score_lag = lag.listw(saeb_queen_weights,
-                                                          df_saeb$saeb_score, NAOK = TRUE))
-  
-  df_saeb_spatial_lag <- bind_cols(df_saeb, vct_saeb_spatial_lag)
-  
-  return(df_saeb_spatial_lag)
   
 }
 
