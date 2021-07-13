@@ -1,4 +1,0 @@
-"0","ideb_counties_map <- counties_map %>%"
-"0","  mutate(City = as.character(City)) %>%"
-"0","  left_join(df_ideb_score,"
-"0","            by = c(""City"" = ""county_id""))"

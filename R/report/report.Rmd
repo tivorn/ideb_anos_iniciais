@@ -50,7 +50,8 @@ df_ideb_score %>%
              fill = ideb_publication_year)) +
   geom_density_ridges(stat = "binline", alpha = 0.6) +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "Desempenho no IDEB", y = "Ano de publicação do IDEB")
 ```
 
 A partir do histograma acima percebe-ce uma tendência de crescimento do desempenho escolar no território brasileiro,
@@ -75,7 +76,7 @@ ideb_counties_map %>%
   ggplot() +
   geom_sf(aes(fill = ideb_score),
           colour = "transparent", size = 0.1) +
-  scale_fill_continuous(type = "viridis") +
+  scale_fill_continuous(type = "viridis", name = "Desempenho no IDEB") +
   facet_wrap(~ideb_publication_year) +
   theme(panel.grid = element_line(colour = "transparent"),
         panel.background = element_blank(),
@@ -92,11 +93,20 @@ source(get_ideb_spatial_lag_dir)
 ```
 
 ```{r}
+ideb_counties_map_queen_weights <- ideb_counties_map %>%
+  filter(ideb_score_status == "Observado") %>%
+  group_by(ideb_publication_year) %>%
+  group_modify(~get_ideb_spatial_lag(.x)) %>%
+  ungroup()
+```
+
+
+```{r}
 ideb_counties_map_queen_weights %>%
   ggplot() +
   geom_sf(aes(geometry = geometry, fill = ideb_score_lag),
           colour = "transparent", size = 0.1) +
-  scale_fill_continuous(type = "viridis") +
+  scale_fill_continuous(type = "viridis", name = "Desempenho no IDEB\nsuavizado") +
   facet_wrap(~ideb_publication_year) +
   theme(panel.grid = element_line(colour = "transparent"),
         panel.background = element_blank(),
@@ -107,18 +117,37 @@ ideb_counties_map_queen_weights %>%
 Temos que a pontuação do IDEB suavizada pelos vizinhos apresentam uma predominância de notas acima de 6 nas regiões sudestes e no
 estado do Ceará, o que corroborá a análise acima a partir dos dados não suavizados. Especialmente o estado cearense apresenta uma distância em termos de desempenho escolar muito além dos seus vizinhos. Diante disso, o diagrama de espalhamento de Moran pode auxiliar na visualização desses valores extremos que não seguem o mesmo processo de dependência espacial.
 
+```{r}
+scale_ideb_by_group <- function(df) {
+      df_scaled <- df %>%
+        mutate(ideb_score_lag_scaled = scale(ideb_score_lag)[,1],
+               ideb_score_scaled = scale(ideb_score)[,1])
+      
+      return(df_scaled)
+    }
+```
+
 
 ```{r}
-ideb_counties_map_queen_weights %>%
-  ggplot(aes(x = ideb_score, y = ideb_score_lag)) +
+ideb_score_counties_scaled <- ideb_counties_map_queen_weights  %>%
+  select(City, ideb_publication_year, ideb_score_lag, ideb_score) %>%
+  group_by(ideb_publication_year) %>%
+  group_modify(~scale_ideb_by_group(.x))
+```
+
+
+```{r}
+ideb_score_counties_scaled %>%
+  ggplot(aes(x = ideb_score_scaled, y = ideb_score_lag_scaled)) +
   geom_point() +
   geom_smooth(method = "lm") +
-  geom_vline(xintercept = mean(ideb_counties_map_queen_weights$ideb_score, na.rm = TRUE),
+  geom_vline(xintercept = 0,
              color = "red", linetype = "dashed") +
-  geom_hline(yintercept = mean(ideb_counties_map_queen_weights$ideb_score_lag, na.rm = TRUE), color = "red", linetype = "dashed") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
   facet_wrap(~ideb_publication_year) +
   labs(y = "Média do desempenho no IDEB em relação aos vizinhos",
-       x = "desempenho no IDEB")
+       x = "desempenho no IDEB") +
+  theme_minimal()
 ```
 
 A partir do diagrama de espalhamento de Moran é possível deduzir dois fenomenos característicos da dependência espacial do desempenho no IDEB. A primeira está relacionada a "diferença" entre o desempenho médio dos vizinhos, caracterizado pela reta de regressão, e o valor observado do IDEB. Outrossim, uma vez traçadas as retas médias de ambas variáveis relacionadas, o diagrama pode ser subdividido segundo quatro grupos, por exemplo, o quadrante que possui municípios com desempenho no IDEB acima da média e vizinhos igualmente acima da médio são considerados "altos" entre "altos", interpretação semelhante aos quadrantes restantes. Dito isso, fica nítido o movimento de ascendência do desempenho escolar no Brasil durante o período analisado, pois em 2005 os municípios encontravam-se predominantemente no quadrante de baixos entre baixos e em 2019 encontram-se a maioria de altos entre altos. No entanto, embora o crescimento da pontuação, observa-se a presença de pontos distantes negativamente dos seus vizinhos, caracterizando menor semelhança entre eles. 
@@ -135,7 +164,9 @@ ideb_counties_map_queen_weights %>%
   geom_segment(aes(x = ideb_publication_year,
                    xend = ideb_publication_year,
                    y = .8,
-                   yend = global_moran_index))
+                   yend = global_moran_index)) +
+  theme_minimal() +
+  labs(x = "Ano de publicação do IDEB", y = "Índice global de Moran")
 
 ```
 
@@ -147,7 +178,7 @@ ideb_counties_map_queen_weights %>%
   geom_sf(aes(geometry = geometry, fill = moran_status),
           colour = "transparent", size = 0.1) +
   facet_wrap(~ideb_publication_year) +
-  scale_fill_brewer(palette = "RdYlBu") +
+  scale_fill_brewer(palette = "RdYlBu", name = "Quadrante") +
   theme(panel.grid = element_line(colour = "transparent"),
         panel.background = element_blank(),
         axis.text = element_blank(),
@@ -199,8 +230,16 @@ pass_rate_mean_counties <- df_pass_rate %>%
 pass_rate_mean_counties_map <- counties_map %>%
   mutate(City = as.character(City)) %>%
   left_join(pass_rate_mean_counties,
-            by = c("City" = "county_id"))
+            by = c("City" = "county_id")) %>%
+  drop_na(mean_pass_rate)
   
+```
+
+```{r}
+pass_rate_mean_counties_map_queen_weights <- pass_rate_mean_counties_map %>%
+  group_by(ideb_publication_year) %>%
+  group_modify(~get_pass_rate_spatial_lag(.x)) %>%
+  ungroup()
 ```
 
 
@@ -209,13 +248,196 @@ pass_rate_mean_counties_map  %>%
   ggplot() +
   geom_sf(aes(fill = mean_pass_rate),
           colour = "transparent", size = 0.1) +
-  scale_fill_continuous(type = "viridis") +
+scale_fill_continuous(type = "viridis", name = "Taxa média de aprovação") +
   facet_wrap(~ideb_publication_year) +
   theme(panel.grid = element_line(colour = "transparent"),
         panel.background = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank())
 ```
+
+```{r}
+pass_rate_mean_counties_map_queen_weights %>%
+  ggplot() +
+  geom_sf(aes(geometry = geometry, fill = score_lag),
+          colour = "transparent", size = 0.1) +
+  scale_fill_continuous(type = "viridis", name = "Taxa média de\naprovação suavizada") +
+  facet_wrap(~ideb_publication_year) +
+  theme(panel.grid = element_line(colour = "transparent"),
+        panel.background = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+```
+
+```{r}
+scale_by_group <- function(df) {
+      df_scaled <- df %>%
+        mutate(mean_pass_rate_lag_scaled = scale(score_lag)[,1],
+               mean_pass_rate_scaled = scale(mean_pass_rate)[,1])
+      
+      return(df_scaled)
+    }
+```
+
+
+```{r}
+pass_rate_mean_counties_scaled <- pass_rate_mean_counties_map_queen_weights %>%
+  select(City, ideb_publication_year, score_lag, mean_pass_rate) %>%
+  group_by(ideb_publication_year) %>%
+  group_modify(~scale_by_group(.x))
+```
+
+```{r}
+pass_rate_mean_counties_scaled
+```
+
+
+```{r}
+pass_rate_mean_counties_scaled %>%
+  ggplot(aes(x = mean_pass_rate_scaled, y = mean_pass_rate_lag_scaled)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_vline(xintercept = 0,
+             color = "red", linetype = "dashed") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  facet_wrap(~ideb_publication_year) +
+  labs(y = "Taxa média de aprovação suavizada",
+       x = "Taxa média de aprovação") +
+  theme_minimal()
+```
+
+```{r}
+pass_rate_mean_counties_map_queen_weights %>%
+  group_by(ideb_publication_year) %>%
+  drop_na() %>%
+  summarise(global_moran_index = cor(mean_pass_rate, score_lag, method = "pearson")) %>%
+  ggplot(aes(x = ideb_publication_year, y = global_moran_index)) +
+  geom_point() +
+  geom_segment(aes(x = ideb_publication_year,
+                   xend = ideb_publication_year,
+                   y = .7,
+                   yend = global_moran_index)) +
+  theme_minimal() +
+  labs(x = "Ano de publicação do IDEB", y = "Índice global de Moran")
+
+```
+
+```{r}
+df_saeb_score %>%
+  mutate(score_class = str_conv(score_class, encoding = "UTF-8")) %>%
+  filter(score_class == "Nota média padronizada") %>%
+  ggplot(aes(x = saeb_score, 
+             y = ideb_publication_year, 
+             fill = ideb_publication_year)) +
+  geom_density_ridges(stat = "binline", alpha = 0.6) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = "Desempenho no SAEB", y = "Ano de publicação do IDEB")
+```
+
+```{r}
+saeb_counties_map <- counties_map %>%
+  mutate(City = as.character(City)) %>%
+  left_join(df_saeb_score,
+            by = c("City" = "county_id")) %>%
+  mutate(score_class = str_conv(score_class, encoding = "UTF-8")) %>%
+  filter(score_class == "Nota média padronizada")
+```
+
+```{r}
+saeb_counties_map %>%
+  ggplot() +
+  geom_sf(aes(fill = saeb_score),
+          colour = "transparent", size = 0.1) +
+  scale_fill_continuous(type = "viridis", name = "Desempenho no SAEB") +
+  facet_wrap(~ideb_publication_year) +
+  theme(panel.grid = element_line(colour = "transparent"),
+        panel.background = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+```
+
+```{r}
+saeb_counties_map_queen_weights <- saeb_counties_map %>%
+  group_by(ideb_publication_year) %>%
+  group_modify(~get_saeb_spatial_lag(.x)) %>%
+  ungroup()
+```
+
+```{r}
+saeb_counties_map_queen_weights %>%
+  ggplot() +
+  geom_sf(aes(geometry = geometry, fill = saeb_score_lag),
+          colour = "transparent", size = 0.1) +
+  scale_fill_continuous(type = "viridis", name = "Desempenho no SAEB suavizado") +
+  facet_wrap(~ideb_publication_year) +
+  theme(panel.grid = element_line(colour = "transparent"),
+        panel.background = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+```
+
+```{r}
+scale_saeb_by_group <- function(df) {
+      df_scaled <- df %>%
+        mutate(saeb_score_lag_scaled = scale(saeb_score_lag)[,1],
+               saeb_score_scaled = scale(saeb_score)[,1])
+      
+      return(df_scaled)
+    }
+```
+
+
+```{r}
+saeb_counties_scaled <- saeb_counties_map_queen_weights %>%
+  select(City, ideb_publication_year, saeb_score_lag, saeb_score) %>%
+  group_by(ideb_publication_year) %>%
+  group_modify(~scale_saeb_by_group(.x))
+```
+
+```{r}
+saeb_counties_scaled %>%
+  ggplot(aes(x = saeb_score_scaled, y = saeb_score_lag_scaled)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_vline(xintercept = 0,
+             color = "red", linetype = "dashed") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  facet_wrap(~ideb_publication_year) +
+  labs(y = "Média do desempenho no SAEB em relação aos vizinhos",
+       x = "desempenho no SAEB") +
+  theme_minimal()
+```
+
+```{r}
+saeb_counties_map_queen_weights %>%
+  group_by(ideb_publication_year) %>%
+  drop_na() %>%
+  summarise(global_moran_index = cor(saeb_score, saeb_score_lag, method = "pearson")) %>%
+  ggplot(aes(x = ideb_publication_year, y = global_moran_index)) +
+  geom_point() +
+  geom_segment(aes(x = ideb_publication_year,
+                   xend = ideb_publication_year,
+                   y = .7,
+                   yend = global_moran_index)) +
+  theme_minimal() +
+  labs(x = "Ano de publicação do IDEB", y = "Índice global de Moran")
+
+```
+
+```{r}
+saeb_counties_map_queen_weights %>%
+  ggplot() +
+  geom_sf(aes(geometry = geometry, fill = moran_status),
+          colour = "transparent", size = 0.1) +
+  facet_wrap(~ideb_publication_year) +
+  scale_fill_brewer(palette = "RdYlBu", name = "Quadrante") +
+  theme(panel.grid = element_line(colour = "transparent"),
+        panel.background = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+```
+
 
 ### Referências
 
